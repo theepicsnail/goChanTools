@@ -1,16 +1,30 @@
 package goChanTools
 import "testing"
 
-func makeChans(num int) []chan string {
-    out := make([]chan string, num)
+func makeChans(num int) []chan interface{} {
+    out := make([]chan interface{}, num)
     for i := range(out) {
-        out[i] = make(chan string)
+        out[i] = make(chan interface{})
     }
     return out
 }
 
-func testRead(expected string, ch <-chan string, test *testing.T) {
-    if expected != <-ch {
+func testRead(expected string, expectedOk bool, ch <-chan interface{}, test *testing.T) {
+    val, ok := <-ch
+    if ok != expectedOk {
+        //Didn't get a message and exected one, or got one and didn't expect it.
+        test.FailNow()
+    }
+
+    sval, convOk := val.(string)
+    if convOk != expectedOk {
+        //Expected a value, and didn't get one, or got one and didn't expected it.
+        test.FailNow()
+    }
+
+    //We got what we've expected so far, check that the values line up.
+
+    if expected != sval {
         test.FailNow()
     }
 }
@@ -35,20 +49,10 @@ func TestManyToOne(test *testing.T) {
         close(c[2]) 
     } ()
 
-    val, ok := <- c[0]
-    if val != "A" || ok != true {
-        test.FailNow()
-    }
 
-    val, ok = <- c[0]
-    if val != "B" || ok != true {
-        test.FailNow()
-    }
-
-    val, ok = <- c[0]
-    if val != "" || ok != false {
-        test.FailNow()
-    }
+    testRead("A", true, c[0], test)
+    testRead("B", true, c[0], test)
+    testRead("", false, c[0], test) 
 }
 
 func TestOneToMany(test *testing.T) {
@@ -64,20 +68,13 @@ func TestOneToMany(test *testing.T) {
     otm.AddOutputChan(c[2])
     
     c[0] <- "A"
-    testRead("A", c[1], test)
-    testRead("A", c[2], test)
+    testRead("A", true, c[1], test)
+    testRead("A", true, c[2], test)
 
     close(c[0])
 
-    val, ok := <- c[1]
-    if val != "" || ok != false {
-        test.FailNow()
-    }
-
-    val, ok = <- c[2]
-    if val != "" || ok != false {
-        test.FailNow()
-    }
+    testRead("", false, c[1], test)
+    testRead("", false, c[2], test)
 }
 
 func TestManyToMany(test *testing.T) {
@@ -95,30 +92,23 @@ func TestManyToMany(test *testing.T) {
     mtm.AddOutputChan(c[3])
 
     c[0] <- "A"
-    testRead("A", c[2], test)
-    testRead("A", c[3], test)
+    testRead("A", true, c[2], test)
+    testRead("A", true, c[3], test)
 
     c[1] <- "B"
-    testRead("B", c[2], test)
-    testRead("B", c[3], test)
+    testRead("B", true, c[2], test)
+    testRead("B", true, c[3], test)
 
     close(c[0])
 
     c[1] <- "C"
-    testRead("C", c[2], test)
-    testRead("C", c[3], test)
+    testRead("C", true, c[2], test)
+    testRead("C", true, c[3], test)
 
     close(c[1])
     
-    val, ok := <- c[2]
-    if val != "" || ok != false {
-        test.FailNow()
-    }
-    
-    val, ok = <-c[3]
-    if val != "" || ok != false {
-        test.FailNow()
-    }
+    testRead("", false, c[2], test)
+    testRead("", false, c[3], test)
 }
 
 func TestOneToManyToOneDuplication(test *testing.T) {
@@ -139,8 +129,8 @@ func TestOneToManyToOneDuplication(test *testing.T) {
 
     c[0] <- "A"
     
-    testRead("A", c[3], test)
-    testRead("A", c[3], test)
+    testRead("A", true, c[3], test)
+    testRead("A", true, c[3], test)
 }
 
 func TestOneToManyTree(test *testing.T) {
@@ -162,7 +152,7 @@ func TestOneToManyTree(test *testing.T) {
 
     c[0] <- "A"
     
-    testRead("A", c[1], test)
-    testRead("A", c[3], test)
-    testRead("A", c[4], test)
+    testRead("A", true, c[1], test)
+    testRead("A", true, c[3], test)
+    testRead("A", true, c[4], test)
 }
