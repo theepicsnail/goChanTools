@@ -27,11 +27,28 @@ func TestManyToOne(test *testing.T) {
     mto.AddInputChan(c[1])
     mto.AddInputChan(c[2])
 
-    c[1] <- "A"
-    testRead("A", c[0], test)
+    go func () {
+        c[1] <- "A"
+        close(c[1])
 
-    c[2] <- "B"
-    testRead("B", c[0], test)
+        c[2] <- "B"
+        close(c[2]) 
+    } ()
+
+    val, ok := <- c[0]
+    if val != "A" || ok != true {
+        test.FailNow()
+    }
+
+    val, ok = <- c[0]
+    if val != "B" || ok != true {
+        test.FailNow()
+    }
+
+    val, ok = <- c[0]
+    if val != "" || ok != false {
+        test.FailNow()
+    }
 }
 
 func TestOneToMany(test *testing.T) {
@@ -49,6 +66,18 @@ func TestOneToMany(test *testing.T) {
     c[0] <- "A"
     testRead("A", c[1], test)
     testRead("A", c[2], test)
+
+    close(c[0])
+
+    val, ok := <- c[1]
+    if val != "" || ok != false {
+        test.FailNow()
+    }
+
+    val, ok = <- c[2]
+    if val != "" || ok != false {
+        test.FailNow()
+    }
 }
 
 func TestManyToMany(test *testing.T) {
@@ -72,6 +101,24 @@ func TestManyToMany(test *testing.T) {
     c[1] <- "B"
     testRead("B", c[2], test)
     testRead("B", c[3], test)
+
+    close(c[0])
+
+    c[1] <- "C"
+    testRead("C", c[2], test)
+    testRead("C", c[3], test)
+
+    close(c[1])
+    
+    val, ok := <- c[2]
+    if val != "" || ok != false {
+        test.FailNow()
+    }
+    
+    val, ok = <-c[3]
+    if val != "" || ok != false {
+        test.FailNow()
+    }
 }
 
 func TestOneToManyToOneDuplication(test *testing.T) {

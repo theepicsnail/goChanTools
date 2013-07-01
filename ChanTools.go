@@ -1,6 +1,9 @@
 package goChanTools
+import "sync"
 
 type ManyToOneChan struct {
+    sync.WaitGroup
+    sync.Once
     outChan chan<- string
 }
 
@@ -12,9 +15,15 @@ func NewManyToOneChan(outputChan chan<- string) *ManyToOneChan {
 
 func (m *ManyToOneChan) AddInputChan(ch <-chan string) {
     go func() {
+        m.Add(1)
         for line := range(ch) {
             m.outChan <- line
         }
+        m.Done()
+        m.Do(func() {
+            m.Wait()
+            close(m.outChan)
+        })
     }()
 }
 
@@ -38,6 +47,9 @@ func (o *OneToManyChan) start() {
                     ch <- line
                 }(line, ch)
             }
+        }
+        for _, ch := range(o.outChans) {
+            close(ch)
         }
     }()
 }
